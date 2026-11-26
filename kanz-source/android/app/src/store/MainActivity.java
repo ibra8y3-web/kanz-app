@@ -382,7 +382,11 @@ public class MainActivity extends Activity {
     else if (isInstalled(a)) { t = "✓ مثبّت"; fg = OK; bgc = OKBG; }
     else { Rec r = recs.get(a.pk); if (r != null && r.state == 2 && r.file != null && new File(r.file).exists()) { t = "محمّل"; fg = BLUE; bgc = BLUEBG; } else { t = "تثبيت"; fg = WHITE; bgc = PRIMARY; } }
     View v = genericRow(a.pk, a.name, a.sum, a.gh != null ? (a.size > 0 ? mb(a.size) + "  •  " : "") + (a.vn.isEmpty() ? "★ " + a.gh.optInt("s") + "  •  " : a.vn + "  •  ") + "غير مُراجَع يدويًا" : mb(a.size) + "  •  " + a.vn + "  •  " + REPO_NAMES[a.repo], (a.gh != null && a.gh.optInt("live") == 1 && t.equals("تثبيت")) ? "عرض" : t, fg, bgc, null);
-    ImageView iv = (ImageView) ((LinearLayout) ((FrameLayout) v).getChildAt(0)).getChildAt(0); setIcon(iv, a);
+    LinearLayout row = (LinearLayout) ((FrameLayout) v).getChildAt(0);
+    ImageView iv = (ImageView) row.getChildAt(0); setIcon(iv, a);
+    final TextView fv = tv(favs.contains(a.pk) ? "⭐" : "☆", 15, WARN, false); fv.setPadding(dp(8), 0, dp(2), 0);
+    fv.setOnClickListener(x -> { toggleFav(a.pk); fv.setText(tr(favs.contains(a.pk) ? "⭐" : "☆")); });
+    row.addView(fv);
     return v;
   }
 
@@ -440,6 +444,9 @@ public class MainActivity extends Activity {
     pullRefresh(sv);
     if (!rcMsg.isEmpty()) { TextView sb = tv(rcMsg, 12, rcMsg.startsWith("⚠") ? RED : OK, true); sb.setPadding(dp(14), dp(8), dp(14), dp(8)); sb.setBackground(bg(rcMsg.startsWith("⚠") ? ERRBG : OKBG, 12)); sb.setOnClickListener(x -> { rcMsg = ""; show(); }); c.addView(sb, lp(-1, -2, 12, 8, 12, 0)); }
     if (rcPending > 0) { TextView pb = tv("📦 في تحديث للكتالوج (" + mb(rcPending) + "). اضغط هنا للتحديث", 12, PRIMARY, true); pb.setPadding(dp(14), dp(8), dp(14), dp(8)); pb.setBackground(bg(SOFTBG, 12)); pb.setOnClickListener(x -> syncRemote(true)); c.addView(pb, lp(-1, -2, 12, 8, 12, 0)); }
+    kanzCard(c);
+    final List<App> favl = new ArrayList<>(); for (App a : sorted(all, "name")) if (favs.contains(a.pk)) favl.add(a);
+    if (!favl.isEmpty()) section(c, "⭐ المفضلة", favl, 24, () -> push(listPage("المفضلة", favl, true, tr("مفيش مفضلة لسه. دوس ☆ على أي تطبيق."))));
     HorizontalScrollView hs = new HorizontalScrollView(this); hs.setHorizontalScrollBarEnabled(false); LinearLayout cr = new LinearLayout(this); cr.setPadding(dp(8), dp(8), dp(8), dp(0)); hs.addView(cr);
     for (int i = 0; i < cats.length; i++) {
       final int ci = i; TextView ch = tv(EMOJI[Math.min(i, EMOJI.length - 1)] + " " + cats[i], 12, DARKTXT, true); ch.setPadding(dp(11), dp(6), dp(11), dp(6)); ch.setBackground(bg(CATCOL[Math.min(i, CATCOL.length - 1)], 20));
@@ -466,6 +473,52 @@ public class MainActivity extends Activity {
 
   int installedCount() { int n = 0; for (App a : all) if (isInstalled(a)) n++; return n; }
 
+  // the store lists itself first on home, with its own install/update state
+  static boolean newerVer(String latest, String cur) {
+    try {
+      String[] a = latest.replaceFirst("^[vV]", "").trim().split("[^0-9]+"), b = cur.replaceFirst("^[vV]", "").trim().split("[^0-9]+");
+      for (int i = 0; i < Math.max(a.length, b.length); i++) {
+        long x = i < a.length && !a[i].isEmpty() ? Long.parseLong(a[i]) : 0, y = i < b.length && !b[i].isEmpty() ? Long.parseLong(b[i]) : 0;
+        if (x != y) return x > y;
+      }
+    } catch (Exception e) { }
+    return false;
+  }
+
+  void selfUpdate(final App self) {
+    try {
+      JSONObject as = new JSONObject();
+      as.put("browser_download_url", DEF_BASE + "kanz.apk"); as.put("name", "kanz.apk"); as.put("size", self.size); as.put("digest", "sha256:" + self.sha); as.put("tag", self.vn);
+      ghDownload("ibra8y3-web/kanz-catalog", as);   // ghDownload fetches fresh app.json for the store's own APK
+    } catch (Exception e) { }
+  }
+
+  void kanzCard(LinearLayout parent) {
+    final App self = byPk.get("gh:ibra8y3-web/kanz-catalog");
+    String curVn = "";
+    try { PackageInfo p = getPackageManager().getPackageInfo(getPackageName(), 0); curVn = p.versionName == null ? "" : p.versionName; } catch (Exception e) { }
+    String latest = self == null ? "" : self.vn;
+    final boolean upd = !latest.isEmpty() && newerVer(latest, curVn);
+    LinearLayout k = card();
+    LinearLayout row = new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL);
+    ImageView iv = new ImageView(this); row.addView(iv, new LinearLayout.LayoutParams(dp(44), dp(44)));
+    if (self != null) setIcon(iv, self); else iv.setImageBitmap(letter("store.almasdar", "كنز"));
+    LinearLayout col = vbox(); col.setPadding(dp(12), 0, dp(4), 0);
+    col.addView(tv("كنز — المتجر نفسه", 15, INK, true));
+    col.addView(tv("المثبّت عندك: " + (curVn.isEmpty() ? "؟" : ltr(curVn)) + (latest.isEmpty() ? "" : "  •  أحدث نسخة: " + ltr(latest)), 12, SUB, false));
+    row.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
+    k.addView(row);
+    if (self != null) {
+      Button b = pbtn(upd ? "تحديث كنز إلى " + latest : "✅ كنز محدّث", upd ? WARN : OK);
+      b.setOnClickListener(x -> { if (upd) { if (!canInstall()) return; selfUpdate(self); } else openDetail(self); });
+      k.addView(b, lp(-1, 46, 0, 10, 0, 0));
+      k.setOnClickListener(x -> openDetail(self));
+    } else {
+      TextView w = tv("اسحب لتحديث الكتالوج عشان يظهر وضع تحديث كنز هنا.", 12, SUB, false); w.setPadding(0, dp(8), 0, 0); k.addView(w);
+    }
+    parent.addView(k, lp(-1, -2, 12, 8, 12, 0));
+  }
+
   void section(LinearLayout parent, String title, List<App> items, int max, Runnable more) {
     LinearLayout head = new LinearLayout(this); head.setGravity(Gravity.CENTER_VERTICAL); head.setPadding(dp(16), dp(10), dp(16), dp(4));
     head.addView(tv(title, 15, INK, true), new LinearLayout.LayoutParams(0, -2, 1));
@@ -478,13 +531,20 @@ public class MainActivity extends Activity {
   }
 
   View tile(final App a) {
+    FrameLayout wrap = new FrameLayout(this);
     LinearLayout c = vbox(); c.setGravity(Gravity.CENTER_HORIZONTAL); c.setPadding(dp(4), dp(8), dp(4), dp(8)); c.setBackground(bg(CARD, 14)); c.setElevation(dp(1));
     ImageView iv = new ImageView(this); c.addView(iv, new LinearLayout.LayoutParams(dp(42), dp(42))); setIcon(iv, a);
     TextView n = tv(a.name, 11, INK, true); n.setGravity(Gravity.CENTER); n.setLines(2); n.setEllipsize(TextUtils.TruncateAt.END); n.setPadding(0, dp(5), 0, 0); c.addView(n);
     String st = hasUpdate(a) ? "تحديث" : isInstalled(a) ? "✓ مثبّت" : !a.ok ? "⚠ غير متوافق" : mb(a.size);
     TextView s = tv(st, 10, isInstalled(a) ? OK : SUB, isInstalled(a)); c.addView(s);
-    c.setLayoutParams(lp(78, -2, 3, 2, 3, 4)); c.setOnClickListener(x -> openDetail(a)); return c;
+    wrap.addView(c, new FrameLayout.LayoutParams(-1, -2));
+    final TextView fv = tv(favs.contains(a.pk) ? "⭐" : "☆", 13, WARN, false); fv.setPadding(dp(5), dp(3), dp(5), dp(3));
+    fv.setOnClickListener(x -> { toggleFav(a.pk); fv.setText(tr(favs.contains(a.pk) ? "⭐" : "☆")); });
+    wrap.addView(fv, new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START));
+    wrap.setLayoutParams(lp(78, -2, 3, 2, 3, 4)); wrap.setOnClickListener(x -> openDetail(a)); return wrap;
   }
+
+  void toggleFav(String pk) { if (favs.contains(pk)) favs.remove(pk); else favs.add(pk); sp.edit().putStringSet("favs", new HashSet<>(favs)).apply(); }
 
   // ================= categories =================
   void openCat(int ci) { List<App> l = new ArrayList<>(); for (App a : all) for (int cc : a.cats) if (cc == ci) { l.add(a); break; } push(listPage(cats[ci], l, true, "")); }
@@ -1696,7 +1756,7 @@ public class MainActivity extends Activity {
         case 10: { File[] fs = new File(getExternalFilesDir(null), "dl").listFiles(); if (fs != null) for (File f : fs) f.delete(); for (Rec r : new ArrayList<>(recs.values())) if (r.state == 2 || r.state == 4) recs.remove(r.key); saveRecs(); show(); break; }
         case 11: syncRemote(true); break;
         case 12: try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(sp.getString("site", "https://ibra8y3-web.github.io/kanz-catalog/")))); } catch (Exception e) { } break;
-        default: new TB(this).setTitle("كنز 4.0").setMessage("متجر لتطبيقات أندرويد المفتوحة المصدر والمجانية فقط.\n\n• الفهرس: " + all.size() + " تطبيق (متوافق مع جهازك: " + compatCount() + "). الرقم الإجمالي نفسه على كل الأجهزة لنفس نسخة الكتالوج؛ المتوافق بيختلف حسب أندرويد والمعالج.\n• نسخة الكتالوج: " + (rcRev > 0 ? "r" + rcRev + " • " + rcGen : "المدمج فقط") + "\n• بنتأكد من البصمة (SHA-256) لما تكون متاحة، وبنعرض الأذونات والمتتبّعات قبل التثبيت.\n• التحميل في الخلفية وبيكمل من حيث وقف.\n• مصادر إضافية غير مُراجَعة يدويًا.").setPositiveButton("تمام", null).show();
+        default: new TB(this).setTitle("كنز 4.17").setMessage("متجر لتطبيقات أندرويد المفتوحة المصدر والمجانية فقط.\n\n• الفهرس: " + all.size() + " تطبيق (متوافق مع جهازك: " + compatCount() + "). الرقم الإجمالي نفسه على كل الأجهزة لنفس نسخة الكتالوج؛ المتوافق بيختلف حسب أندرويد والمعالج.\n• نسخة الكتالوج: " + (rcRev > 0 ? "r" + rcRev + " • " + rcGen : "المدمج فقط") + "\n• بنتأكد من البصمة (SHA-256) لما تكون متاحة، وبنعرض الأذونات والمتتبّعات قبل التثبيت.\n• التحميل في الخلفية وبيكمل من حيث وقف.\n• مصادر إضافية غير مُراجَعة يدويًا.").setPositiveButton("تمام", null).show();
       }
     }).show();
   }

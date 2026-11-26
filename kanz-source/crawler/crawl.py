@@ -803,9 +803,21 @@ def self_entry():
         _ap = os.path.join(OUT, j.get("file", "kanz.apk"))   # hash/size come from the real file so the catalog can never disagree with it
         j["size"] = os.path.getsize(_ap); j["sha256"] = hashlib.sha256(open(_ap, "rb").read()).hexdigest()
         iid = "ibra8y3-web/kanz-catalog"; ico = os.path.join(OUT, "icons", icon_file(iid)); src = os.path.join(OUT, "icon.png")
-        if not os.path.exists(ico) and os.path.exists(src):
-            from PIL import Image
-            im = Image.open(src).convert("RGBA"); im.thumbnail((128, 128)); _save_icon(im, icon_file(iid))
+        # the store's own icon follows the APK's launcher icon; refreshed whenever the APK's sha changes (marker file), icon.png is only a fallback
+        mark = ico + ".sha"
+        prev = open(mark, encoding="utf-8").read().strip() if os.path.exists(mark) else ""
+        if prev != j["sha256"]:
+            im = None
+            try:
+                import zipfile, apk_icon
+                im = apk_icon._from_zip(zipfile.ZipFile(_ap))
+            except Exception as e:
+                log("self apk icon failed", repr(e))
+            if im is None and os.path.exists(src):
+                from PIL import Image
+                im = Image.open(src).convert("RGBA"); im.thumbnail((128, 128))
+            if im is not None:
+                _save_icon(im, icon_file(iid)); open(mark, "w", encoding="utf-8").write(j["sha256"])
         url = "https://raw.githubusercontent.com/ibra8y3-web/kanz-catalog/main/docs/" + j.get("file", "kanz.apk")
         return {"id": iid, "h": "github", "n": "كنز (Kanz)", "d": "متجر تطبيقات مفتوحة المصدر بالعربي. من هنا بتحدّث المتجر نفسه.",
                 "l": "FOSS", "s": 0, "u": "https://ibra8y3-web.github.io/kanz-catalog/", "c": "أدوات النظام", "o": "kanz",
