@@ -335,7 +335,11 @@ public class MainActivity extends Activity {
     if (f0.exists()) { Bitmap bm = decode(f0); if (bm != null) { cache.put(key, bm); iv.setImageBitmap(bm); } return; }
     if (url == null || !iconsOn() || miss.contains(url)) return;
     net.execute(() -> {
-      String[] tryUrls = url.startsWith(BASES[0][0]) ? new String[]{url, BASES[0][1] + url.substring(BASES[0][0].length()), url} : new String[]{url, url};
+      String[] tryUrls;
+      if (url.startsWith(BASES[0][0])) tryUrls = new String[]{url, BASES[0][1] + url.substring(BASES[0][0].length()), url};
+      else if (url.startsWith(DEF_BASE)) tryUrls = new String[]{url, OLD_BASE + url.substring(DEF_BASE.length())};
+      else if (url.startsWith(OLD_BASE)) tryUrls = new String[]{url, DEF_BASE + url.substring(OLD_BASE.length())};
+      else tryUrls = new String[]{url, url};
       for (int t = 0; t < tryUrls.length; t++) {
         try {
           HttpURLConnection cn = (HttpURLConnection) new URL(tryUrls[t]).openConnection(); cn.setConnectTimeout(12000); cn.setReadTimeout(15000);
@@ -355,7 +359,7 @@ public class MainActivity extends Activity {
   }
 
   void setIcon(ImageView iv, App a) {
-    String url = a.gh != null ? (a.icon.isEmpty() ? null : a.icon) : a.icon.isEmpty() ? catBase() + "icons/fd_" + a.pk.replaceAll("[^A-Za-z0-9._-]", "_") + ".webp" : (a.repo >= 0 && a.repo < BASES.length ? BASES[a.repo][0] : BASES[0][0]) + a.icon.replaceFirst("^/", "");
+    String url = a.gh != null ? (a.icon.isEmpty() ? null : a.icon) : a.icon.isEmpty() ? curBase() + "icons/fd_" + a.pk.replaceAll("[^A-Za-z0-9._-]", "_") + ".webp" : (a.repo >= 0 && a.repo < BASES.length ? BASES[a.repo][0] : BASES[0][0]) + a.icon.replaceFirst("^/", "");
     String vtag = a.vc > 0 ? String.valueOf(a.vc) : (a.vn == null ? "" : a.vn.trim());
     vtag = vtag.replaceAll("[^A-Za-z0-9._-]", "");
     setIcon(iv, a.pk + (vtag.isEmpty() ? "" : "@" + vtag), a.name, url);
@@ -491,13 +495,13 @@ public class MainActivity extends Activity {
   void selfUpdate(final App self) {
     try {
       JSONObject as = new JSONObject();
-      as.put("browser_download_url", DEF_BASE + "kanz.apk"); as.put("name", "kanz.apk"); as.put("size", self.size); as.put("digest", "sha256:" + self.sha); as.put("tag", self.vn);
-      ghDownload("ibra8y3-web/kanz-catalog", as);   // ghDownload fetches fresh app.json for the store's own APK
+      as.put("browser_download_url", curBase() + "kanz.apk"); as.put("name", "kanz.apk"); as.put("size", self.size); as.put("digest", "sha256:" + self.sha); as.put("tag", self.vn);
+      ghDownload(SELF_ID, as);   // ghDownload fetches fresh app.json for the store's own APK
     } catch (Exception e) { }
   }
 
   void kanzCard(LinearLayout parent) {
-    final App self = byPk.get("gh:ibra8y3-web/kanz-catalog");
+    App s0 = byPk.get("gh:" + SELF_ID); final App self = s0 != null ? s0 : byPk.get("gh:" + SELF_ID2);
     String curVn = "";
     try { PackageInfo p = getPackageManager().getPackageInfo(getPackageName(), 0); curVn = p.versionName == null ? "" : p.versionName; } catch (Exception e) { }
     String latest = self == null ? "" : self.vn;
@@ -857,10 +861,12 @@ public class MainActivity extends Activity {
   static String ltr(String t) { return t == null || t.isEmpty() ? t : "\u2066" + t + "\u2069"; }
   void ghDownload(final String full, final JSONObject a) {
     if (!canInstall()) return;
-    if (full.equals("ibra8y3-web/kanz-catalog")) {   // the store's own APK: always use the fresh hash/size from app.json (the catalog can lag behind a new upload)
+    if (full.equals(SELF_ID) || full.equals(SELF_ID2)) {   // the store's own APK: always use the fresh hash/size from app.json (the catalog can lag behind a new upload)
       new Thread(() -> {
         JSONObject use = a;
-        try { JSONObject j = new JSONObject(AutoUpd.get(DEF_BASE + "app.json?t=" + System.currentTimeMillis(), 12000)); JSONObject b = new JSONObject(a.toString()); b.put("digest", "sha256:" + j.getString("sha256")); b.put("size", j.optLong("size")); b.put("browser_download_url", DEF_BASE + j.optString("file", "kanz.apk") + "?t=" + System.currentTimeMillis()); use = b; } catch (Exception e) { }
+        for (String base : catBases()) {
+          try { JSONObject j = new JSONObject(AutoUpd.get(base + "app.json?t=" + System.currentTimeMillis(), 12000)); JSONObject b = new JSONObject(a.toString()); b.put("digest", "sha256:" + j.getString("sha256")); b.put("size", j.optLong("size")); b.put("browser_download_url", base + j.optString("file", "kanz.apk") + "?t=" + System.currentTimeMillis()); use = b; sp.edit().putString("catbase_ok", base).apply(); break; } catch (Exception e) { }
+        }
         final JSONObject fu = use; ui.post(() -> ghDownload2(full, fu));
       }).start(); return;
     }
@@ -873,10 +879,29 @@ public class MainActivity extends Activity {
   }
 
   // ======== Kanz remote catalog (built by the crawler in the user's catalog repo) ========
-  static final String DEF_BASE = "https://raw.githubusercontent.com/ibra8y3-web/kanz-catalog/main/docs/";
+  static final String DEF_BASE = "https://raw.githubusercontent.com/ibra8y3-web/kanz/main/docs/";
+  static final String OLD_BASE = "https://raw.githubusercontent.com/ibra8y3-web/kanz-catalog/main/docs/";
+  static final String SELF_ID = "ibra8y3-web/kanz-catalog";
+  static final String SELF_ID2 = "ibra8y3-web/kanz";
   Map<String, JSONObject> rc; long rcRev = 0; String rcGen = ""; String rcStatus = "";
 
   String catBase() { String b = sp.getString("catbase", DEF_BASE); if (!b.endsWith("/")) b += "/"; return b; }
+  String[] catBases() {
+    String over = sp.getString("catbase", "");
+    if (!over.isEmpty()) { if (!over.endsWith("/")) over += "/"; return new String[]{over}; }
+    LinkedHashSet<String> s = new LinkedHashSet<>();
+    s.add(sp.getString("catbase_ok", DEF_BASE)); s.add(DEF_BASE); s.add(OLD_BASE);
+    return s.toArray(new String[0]);
+  }
+  String curBase() { String b = sp.getString("catbase", ""); if (b.isEmpty()) b = sp.getString("catbase_ok", DEF_BASE); if (!b.endsWith("/")) b += "/"; return b; }
+  byte[] httpBytesAny(String rel) throws IOException {
+    IOException err = null;
+    for (String b : catBases()) {
+      try { byte[] r = httpBytes(b + rel); sp.edit().putString("catbase_ok", b).apply(); return r; }
+      catch (IOException e) { err = e; }
+    }
+    throw err == null ? new IOException("no catalog base") : err;
+  }
   boolean metered() { try { return ((ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE)).isActiveNetworkMetered(); } catch (Exception e) { return true; } }
 
   void loadRemote() {
@@ -927,7 +952,7 @@ public class MainActivity extends Activity {
     if (syncing) return; syncing = true; loadRemote(); if (manual) { rcStatus = "جاري فحص الكتالوج…"; }
     new Thread(() -> {
       try {
-        final JSONObject m = new JSONObject(new String(httpBytes(catBase() + "meta.json"), "UTF-8"));
+        final JSONObject m = new JSONObject(new String(httpBytesAny("meta.json"), "UTF-8"));
         final long rev = m.optLong("rev");
         lastMetaRev = rev;
         sp.edit().putLong("rcchk", System.currentTimeMillis()).apply();
@@ -949,7 +974,7 @@ public class MainActivity extends Activity {
       try {
         byte[] gz = null; File pf = new File(getFilesDir(), "pre.gz");
         if (pf.exists() && sp.getLong("prerev", -1) == lastMetaRev && sp.getBoolean("predelta", false) == delta) { try { FileInputStream fi = new FileInputStream(pf); ByteArrayOutputStream bo0 = new ByteArrayOutputStream(); byte[] b0 = new byte[16384]; int n0; while ((n0 = fi.read(b0)) > 0) bo0.write(b0, 0, n0); fi.close(); gz = bo0.toByteArray(); } catch (Exception e0) { gz = null; } }
-        if (gz == null) gz = httpBytes(catBase() + (delta ? "delta.json.gz" : "catalog.json.gz"));
+        if (gz == null) gz = httpBytesAny(delta ? "delta.json.gz" : "catalog.json.gz");
         android.util.JsonReader jr = new android.util.JsonReader(new InputStreamReader(new java.util.zip.GZIPInputStream(new ByteArrayInputStream(gz)), "UTF-8"));
         Map<String, JSONObject> nm = delta ? new LinkedHashMap<>(rc) : new LinkedHashMap<String, JSONObject>(); final int before = nm.size();
         long rev = 0; String gen = "";
@@ -988,7 +1013,7 @@ public class MainActivity extends Activity {
       // prefer the file matching the phone's ABI inside the latest tag
       for (int i = 0; i < vs.length(); i++) { JSONArray v = vs.optJSONArray(i); if (v.optString(0).equals(v0.optString(0)) && v.optString(2).toLowerCase(Locale.ROOT).contains(abi)) { v0 = v; break; } }
       App a = new App(); String id = o.optString("id"); a.pk = "gh:" + id; a.gh = o; a.name = o.optString("n"); a.sum = o.optString("d"); a.lic = o.optString("l"); a.apk = ""; a.sha = v0.optString(4);
-      a.size = v0.optLong(3); a.vn = v0.optString(0); a.vc = 0; a.icon = o.optInt("ic") == 1 ? catBase() + "icons/" + id.replaceAll("[^A-Za-z0-9._-]", "_") + ".webp" : ""; a.af = ""; a.web = o.optString("u"); a.src = o.optString("h"); a.repo = REPO_NAMES.length - 1; a.desc = a.sum; a.minSdk = 0;
+      a.size = v0.optLong(3); a.vn = v0.optString(0); a.vc = 0; a.icon = o.optInt("ic") == 1 ? curBase() + "icons/" + id.replaceAll("[^A-Za-z0-9._-]", "_") + ".webp" : ""; a.af = ""; a.web = o.optString("u"); a.src = o.optString("h"); a.repo = REPO_NAMES.length - 1; a.desc = a.sum; a.minSdk = 0;
       Integer c = ci.get(o.optString("c")); int cc = c == null ? other : c; a.cats = new int[]{cc};
       a.upd = ts(v0.optString(1)); long ad = a.upd; for (int i = 0; i < vs.length(); i++) ad = Math.min(ad, ts(vs.optJSONArray(i).optString(1))); a.added = Math.max(ad, ts(o.optString("add")) > 0 ? Math.min(ts(o.optString("add")), a.upd) : ad);
       a.lname = a.name.toLowerCase(Locale.ROOT); a.lsum = a.sum.toLowerCase(Locale.ROOT);
@@ -1316,8 +1341,8 @@ public class MainActivity extends Activity {
     saveRecs(); refreshCurrent();
   }
 
-  // ===== v4.6: share links + deep links (kanz://app?id=owner/repo, or https://.../kanz-catalog/a/<slug>/) =====
-  static final String SITE = "https://ibra8y3-web.github.io/kanz-catalog/";
+  // ===== v4.6: share links + deep links (kanz://app?id=owner/repo, or https://.../kanz/a/<slug>/) =====
+  static final String SITE = "https://ibra8y3-web.github.io/kanz/";
   static String slugOf(String id) {
     String s = id.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("^-+|-+$", "");
     try { byte[] h = MessageDigest.getInstance("SHA-1").digest(id.getBytes("UTF-8")); StringBuilder sb = new StringBuilder(); for (int i = 0; i < 3; i++) sb.append(String.format(Locale.US, "%02x", h[i] & 255)); String x = sb.toString(); return s.isEmpty() ? x + "0000" : s + "-" + x; } catch (Exception e) { return s; }
@@ -1377,7 +1402,7 @@ public class MainActivity extends Activity {
     new TB(this).setTitle(a.name).setView(box).setPositiveButton(tr("مشاركة الرابط"), (d, w) -> shareApp(a)).setNegativeButton(tr("إغلاق"), null).show();
     new Thread(() -> {
       try {
-        byte[] b = rawGet(url + "qr.png", 15000);
+        byte[] b = rawGet(curBase() + "a/" + shareSlug(a) + "/qr.png", 15000);
         android.graphics.Bitmap bm = android.graphics.BitmapFactory.decodeByteArray(b, 0, b.length);
         if (bm == null) throw new IOException("bad");
         final android.graphics.Bitmap big = android.graphics.Bitmap.createScaledBitmap(bm, bm.getWidth() * 8, bm.getHeight() * 8, false);
@@ -1542,7 +1567,7 @@ public class MainActivity extends Activity {
     new Thread(() -> {
       try {
         final List<String> urls = new ArrayList<>();
-        for (int i = 1; i <= 2; i++) { String mu = SITE + "shots/" + shareSlug(a) + "/" + i + ".webp"; try { rawGet(mu, 8000); urls.add(mu); } catch (Exception e) { break; } }
+        for (int i = 1; i <= 2; i++) { String mu = curBase() + "shots/" + shareSlug(a) + "/" + i + ".webp"; try { rawGet(mu, 8000); urls.add(mu); } catch (Exception e) { break; } }
         if (urls.isEmpty()) {
           String html = new String(rawGet("https://f-droid.org/en/packages/" + a.pk + "/", 15000), "UTF-8");
           java.util.regex.Matcher m = java.util.regex.Pattern.compile("https://f-droid\\.org/repo/[^\"'\\s]+/phoneScreenshots/[^\"'\\s]+\\.(?:png|jpg|jpeg|webp)").matcher(html);
@@ -1738,7 +1763,7 @@ public class MainActivity extends Activity {
     final String[] d = {"📤 قدّم تطبيقك (فورم خارجي)", "📋 حالة طلبات التقديم (صفحة خارجية)", "ℹ إزاي بيشتغل التقديم؟"};
     new TB(this).setTitle("🛠 للمطورين").setItems(d, (dd, k) -> {
       if (k == 2) { new TB(this).setTitle("إزاي بيشتغل التقديم؟").setMessage("قدّم رابط تطبيقك (مستودع عام مفتوح المصدر أو صفحته على F-Droid) من الفورم الخارجي. فحص آلي بيراجع الترخيص والبصمة والصلاحيات والمتتبعين. اللي يعدي بيدخل المتجر لوحده؛ تطبيقات المطورين الجدد واللي عليها ملاحظة بتستنى مراجعة صاحب المتجر.").setPositiveButton("تمام", null).show(); return; }
-      String u = k == 0 ? "https://github.com/ibra8y3-web/kanz-catalog/issues/new?template=submit-app.yml" : "https://github.com/ibra8y3-web/kanz-catalog/issues?q=is%3Aissue+label%3Asubmit-app";
+      String u = k == 0 ? "https://github.com/ibra8y3-web/kanz/issues/new?template=submit-app.yml" : "https://github.com/ibra8y3-web/kanz/issues?q=is%3Aissue+label%3Asubmit-app";
       try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(u))); } catch (Exception e) { }
     }).show();
   }
@@ -1768,7 +1793,7 @@ public class MainActivity extends Activity {
         case 10: { File[] fs = new File(getExternalFilesDir(null), "dl").listFiles(); if (fs != null) for (File f : fs) f.delete(); for (Rec r : new ArrayList<>(recs.values())) if (r.state == 2 || r.state == 4) recs.remove(r.key); saveRecs(); show(); break; }
         case 11: syncRemote(true); break;
         case 12: devDialog(); break;
-        case 13: try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(sp.getString("site", "https://ibra8y3-web.github.io/kanz-catalog/")))); } catch (Exception e) { } break;
+        case 13: try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(sp.getString("site", "https://ibra8y3-web.github.io/kanz/")))); } catch (Exception e) { } break;
         default: new TB(this).setTitle("كنز 4.19").setMessage("متجر لتطبيقات أندرويد المفتوحة المصدر والمجانية فقط.\n\n• الفهرس: " + all.size() + " تطبيق (متوافق مع جهازك: " + compatCount() + "). الرقم الإجمالي نفسه على كل الأجهزة لنفس نسخة الكتالوج؛ المتوافق بيختلف حسب أندرويد والمعالج.\n• نسخة الكتالوج: " + (rcRev > 0 ? "r" + rcRev + " • " + rcGen : "المدمج فقط") + "\n• بنتأكد من البصمة (SHA-256) لما تكون متاحة، وبنعرض الأذونات والمتتبّعات قبل التثبيت.\n• التحميل في الخلفية وبيكمل من حيث وقف.\n• مصادر إضافية غير مُراجَعة يدويًا.").setPositiveButton("تمام", null).show();
       }
     }).show();

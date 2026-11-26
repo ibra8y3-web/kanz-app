@@ -10,8 +10,8 @@
   </p>
   <p>
     <a href="https://github.com/ibra8y3-web/kanz-app/releases/latest/download/kanz.apk"><strong>Download Kanz APK</strong></a>
-    · <a href="https://ibra8y3-web.github.io/kanz-catalog/">Browse the catalog</a>
-    · <a href="https://github.com/ibra8y3-web/kanz-catalog">Catalog source</a>
+    · <a href="https://ibra8y3-web.github.io/kanz/">Browse the catalog</a>
+    · <a href="https://github.com/ibra8y3-web/kanz">Catalog source</a>
   </p>
 </div>
 
@@ -65,7 +65,7 @@ Kanz uses community-maintained repositories and the companion Kanz catalog. Avai
 3. When Android asks, allow installation for the browser or file manager you used to open the APK.
 4. Review the Android installation prompt and complete the installation.
 
-You can also visit the [Kanz catalog website](https://ibra8y3-web.github.io/kanz-catalog/).
+You can also visit the [Kanz catalog website](https://ibra8y3-web.github.io/kanz/).
 
 **Requirements:** Android 7.0 (API 24) or later and an internet connection for catalog browsing, downloads and synchronization.
 
@@ -130,7 +130,7 @@ GitHub Actions creates the corresponding <code>v&lt;version&gt;</code> release, 
 | <code>crawler/</code> and <code>config.json</code> | Companion catalog discovery and configuration sources |
 | <code>tests/</code> | Offline crawler test suite |
 
-The catalog service and its published data are maintained separately in [ibra8y3-web/kanz-catalog](https://github.com/ibra8y3-web/kanz-catalog).
+The catalog service and its published data are maintained separately in [ibra8y3-web/kanz](https://github.com/ibra8y3-web/kanz).
 
 ## Security and app verification
 
@@ -166,7 +166,7 @@ Kanz is distributed under the [MIT License](LICENSE).
 
 حمّل أحدث إصدار من [صفحة الإصدارات الرسمية](https://github.com/ibra8y3-web/kanz-app/releases/latest)، أو [حمّل ملف APK مباشرة](https://github.com/ibra8y3-web/kanz-app/releases/latest/download/kanz.apk).
 
-يمكنك أيضًا تصفح [كتالوج كنز](https://ibra8y3-web.github.io/kanz-catalog/).
+يمكنك أيضًا تصفح [كتالوج كنز](https://ibra8y3-web.github.io/kanz/).
 
 **متطلبات التشغيل:** أندرويد 7.0 أو أحدث، واتصال بالإنترنت لمزامنة الكتالوج وتنزيل التطبيقات.
 

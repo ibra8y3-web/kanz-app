@@ -35,8 +35,12 @@ public class CatSync extends JobService {
 
   static void run(Context c) throws Exception {
     SharedPreferences sp = c.getSharedPreferences("s", 0);
-    String base = sp.getString("catbase", MainActivity.DEF_BASE); if (!base.endsWith("/")) base += "/";
-    JSONObject m = new JSONObject(new String(get(base + "meta.json"), "UTF-8"));
+    String[] bases; String over = sp.getString("catbase", "");
+    if (!over.isEmpty()) { if (!over.endsWith("/")) over += "/"; bases = new String[]{over}; }
+    else { java.util.LinkedHashSet<String> bs = new java.util.LinkedHashSet<>(); bs.add(sp.getString("catbase_ok", MainActivity.DEF_BASE)); bs.add(MainActivity.DEF_BASE); bs.add(MainActivity.OLD_BASE); bases = bs.toArray(new String[0]); }
+    JSONObject m = null; String base = bases[0];
+    for (String b : bases) { try { m = new JSONObject(new String(get(b + "meta.json"), "UTF-8")); base = b; sp.edit().putString("catbase_ok", b).apply(); break; } catch (Exception e) { } }
+    if (m == null) throw new IOException("catalog unreachable");
     long rev = m.optLong("rev"), local = 0;
     File rcf = new File(c.getFilesDir(), "rc2.jsonl");
     if (rcf.exists()) { try { BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream(rcf), "UTF-8")); local = new JSONObject(r.readLine()).optLong("rev"); r.close(); } catch (Exception e) { local = 0; } }
