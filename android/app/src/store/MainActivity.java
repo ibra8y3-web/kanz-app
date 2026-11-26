@@ -345,6 +345,7 @@ public class MainActivity extends Activity {
           int ss = 1; while (op.outWidth / (ss * 2) >= 128) ss *= 2; op = new BitmapFactory.Options(); op.inSampleSize = ss;
           final Bitmap bm = BitmapFactory.decodeByteArray(raw, 0, raw.length, op); if (bm == null) return;
           try { FileOutputStream o = new FileOutputStream(f0); bm.compress(Bitmap.CompressFormat.PNG, 100, o); o.close(); } catch (Exception e) { }
+          try { int at = key.indexOf('@'); if (at > 0) { String pre = "i_" + key.substring(0, at).replace('/', '_').replace(':', '_') + "@"; File[] olds = getCacheDir().listFiles(); if (olds != null) for (File of : olds) if (of.getName().startsWith(pre) && !of.getName().equals(f0.getName())) of.delete(); } } catch (Exception e) { }
           cache.put(key, bm);
           ui.post(() -> { if (key.equals(iv.getTag())) iv.setImageBitmap(bm); });
           return;
@@ -355,7 +356,9 @@ public class MainActivity extends Activity {
 
   void setIcon(ImageView iv, App a) {
     String url = a.gh != null ? (a.icon.isEmpty() ? null : a.icon) : a.icon.isEmpty() ? catBase() + "icons/fd_" + a.pk.replaceAll("[^A-Za-z0-9._-]", "_") + ".webp" : (a.repo >= 0 && a.repo < BASES.length ? BASES[a.repo][0] : BASES[0][0]) + a.icon.replaceFirst("^/", "");
-    setIcon(iv, a.pk, a.name, url);
+    String vtag = a.vc > 0 ? String.valueOf(a.vc) : (a.vn == null ? "" : a.vn.trim());
+    vtag = vtag.replaceAll("[^A-Za-z0-9._-]", "");
+    setIcon(iv, a.pk + (vtag.isEmpty() ? "" : "@" + vtag), a.name, url);
   }
 
   Bitmap decode(File f) { BitmapFactory.Options op = new BitmapFactory.Options(); op.inSampleSize = 2; return BitmapFactory.decodeFile(f.getPath(), op); }
@@ -1756,7 +1759,7 @@ public class MainActivity extends Activity {
         case 10: { File[] fs = new File(getExternalFilesDir(null), "dl").listFiles(); if (fs != null) for (File f : fs) f.delete(); for (Rec r : new ArrayList<>(recs.values())) if (r.state == 2 || r.state == 4) recs.remove(r.key); saveRecs(); show(); break; }
         case 11: syncRemote(true); break;
         case 12: try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(sp.getString("site", "https://ibra8y3-web.github.io/kanz-catalog/")))); } catch (Exception e) { } break;
-        default: new TB(this).setTitle("كنز 4.17").setMessage("متجر لتطبيقات أندرويد المفتوحة المصدر والمجانية فقط.\n\n• الفهرس: " + all.size() + " تطبيق (متوافق مع جهازك: " + compatCount() + "). الرقم الإجمالي نفسه على كل الأجهزة لنفس نسخة الكتالوج؛ المتوافق بيختلف حسب أندرويد والمعالج.\n• نسخة الكتالوج: " + (rcRev > 0 ? "r" + rcRev + " • " + rcGen : "المدمج فقط") + "\n• بنتأكد من البصمة (SHA-256) لما تكون متاحة، وبنعرض الأذونات والمتتبّعات قبل التثبيت.\n• التحميل في الخلفية وبيكمل من حيث وقف.\n• مصادر إضافية غير مُراجَعة يدويًا.").setPositiveButton("تمام", null).show();
+        default: new TB(this).setTitle("كنز 4.18").setMessage("متجر لتطبيقات أندرويد المفتوحة المصدر والمجانية فقط.\n\n• الفهرس: " + all.size() + " تطبيق (متوافق مع جهازك: " + compatCount() + "). الرقم الإجمالي نفسه على كل الأجهزة لنفس نسخة الكتالوج؛ المتوافق بيختلف حسب أندرويد والمعالج.\n• نسخة الكتالوج: " + (rcRev > 0 ? "r" + rcRev + " • " + rcGen : "المدمج فقط") + "\n• بنتأكد من البصمة (SHA-256) لما تكون متاحة، وبنعرض الأذونات والمتتبّعات قبل التثبيت.\n• التحميل في الخلفية وبيكمل من حيث وقف.\n• مصادر إضافية غير مُراجَعة يدويًا.").setPositiveButton("تمام", null).show();
       }
     }).show();
   }

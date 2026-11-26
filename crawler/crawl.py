@@ -343,13 +343,16 @@ def gl_run(S):
             log("NEW", aid)
     for a in [x for x in S["apps"].values() if x["host"] == "gitlab"]:
         if out_of_time(): break
-        st, hd, rels = jget("https://gitlab.com/api/v4/projects/%d/releases?per_page=30" % a["pid"], host="gitlab")
+        pid = a.get("pid")
+        url = ("https://gitlab.com/api/v4/projects/%d/releases?per_page=30" % pid) if pid else               ("https://gitlab.com/api/v4/projects/%s/releases?per_page=30" % urllib.parse.quote(a["id"][7:], safe=""))
+        st, hd, rels = jget(url, host="gitlab")
         a["checked"] = now()
         if st == 200 and rels:
-            f = gl_collect(rels)
+            known = {(v["tag"], v["file"]): v for v in a["versions"]}
+            f = gl_collect(rels, known=known)
             if f and merge_versions(a, f, now()): a["r"] = S["rev"] + 1; stats["new_versions"] += 1
 
-def gl_collect(rels):
+def gl_collect(rels, known=None):
     found = []
     for r in rels:
         for l in (r.get("assets") or {}).get("links", []):
@@ -358,6 +361,9 @@ def gl_collect(rels):
             if not (u.lower().split("?")[0].endswith(".apk") or nm.lower().endswith(".apk")): continue
             fn = nm if nm.lower().endswith(".apk") else u.split("?")[0].rsplit("/", 1)[-1]
             if not apk_ok(fn, 0): continue
+            k = (r.get("tag_name", "?"), fn)
+            if known and k in known:
+                found.append(known[k]); continue
             sha = sha256_url(u, "gitlab", 0)
             if not sha: continue
             found.append({"tag": r.get("tag_name", "?"), "date": (r.get("released_at") or "")[:10], "file": fn, "size": 0, "sha": sha, "url": u, "hs": "computed", "pre": 0})
@@ -392,7 +398,8 @@ def cb_run(S):
         st, hd, rels = jget("%s/repos/%s/releases?limit=30" % (base, a["id"][9:]), host="codeberg")
         a["checked"] = now()
         if st == 200 and rels:
-            f = cb_collect(rels)
+            known = {(v["tag"], v["file"]): v for v in a["versions"]}
+            f = cb_collect(rels, known=known)
             if f and merge_versions(a, f, now()): a["r"] = S["rev"] + 1; stats["new_versions"] += 1
 
 LIC_SNIFF = [("GNU AFFERO GENERAL PUBLIC LICENSE", "AGPL-3.0"), ("GNU LESSER GENERAL PUBLIC LICENSE", "LGPL-3.0"), ("GNU GENERAL PUBLIC LICENSE\n Version 3", "GPL-3.0"),
@@ -406,12 +413,15 @@ def cb_license(base, full):
                 if k.lower() in t.lower(): return v
     return ""
 
-def cb_collect(rels):
+def cb_collect(rels, known=None):
     found = []
     for r in rels:
         if r.get("draft"): continue
         for a in r.get("assets", []):
             if not apk_ok(a["name"], a.get("size")): continue
+            k = (r.get("tag_name", "?"), a["name"])
+            if known and k in known:
+                found.append(known[k]); continue
             sha = sha256_url(a["browser_download_url"], "codeberg", a.get("size"))
             if not sha: continue
             found.append({"tag": r.get("tag_name", "?"), "date": (r.get("published_at") or r.get("created_at") or "")[:10], "file": a["name"],
