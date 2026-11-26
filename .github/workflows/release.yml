@@ -1,0 +1,35 @@
+name: release
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "release/kanz.apk"
+      - "version.txt"
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          VER=$(cut -d' ' -f1 version.txt)
+          TAG="v$VER"
+          echo "version=$VER tag=$TAG"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "release/kanz.apk#kanz.apk" --clobber
+          else
+            gh release create "$TAG" "release/kanz.apk#kanz.apk" \
+              --title "كنز $VER" \
+              --notes "أحدث نسخة من تطبيق كنز، المتجر المفتوح للتطبيقات الحرة. ملف التثبيت: kanz.apk"
+          fi
+          gh release view "$TAG" --json tagName,assets
