@@ -230,28 +230,166 @@ def process_github_candidate(S, meta):
     stats["new_apps"] += 1; stats["new_versions"] += len(a["versions"])
     log("NEW", aid, len(a["versions"]), "versions")
 
+def vt_check(sha):
+    """Optional VirusTotal lookup by hash. Returns positives count, 0 clean, None unavailable."""
+    if not CFG.get("vt_enabled") or not os.environ.get("VT_API_KEY"): return None
+    st, hd, d = jget("https://www.virustotal.com/api/v3/files/" + sha, host="virustotal")
+    if st != 200 or not d: return None
+    try:
+        stt = d["data"]["attributes"]["last_analysis_stats"]
+        return int(stt.get("malicious", 0)) + int(stt.get("suspicious", 0))
+    except Exception: return None
+
+def sub_trusted(S, prefixes, exclude=None):
+    """a developer/source is trusted once they already have ANOTHER app in the catalog"""
+    return any(aid != exclude and any(aid.startswith(p) for p in prefixes) for aid in S["apps"])
+
+def sub_finish(S, it, r, a, doubt):
+    """decide: auto-accept (trusted source, no doubts) or hold for the store owner's review (removes the staged app)."""
+    if not doubt and sub_trusted(S, r["trust_prefixes"], a["id"]):
+        r["status"] = "accepted"; log("SUBMISSION accepted", a["id"]); return
+    S["apps"].pop(a["id"], None)
+    r["status"] = "review"; r["doubt"] = doubt or ["مطور جديد (أول تطبيق من المصدر ده)"]
+    log("SUBMISSION pending review", a["id"], r["doubt"])
+
+def sub_add_gitlab(S, path):
+    st, hd, o = jget("https://gitlab.com/api/v4/projects/%s?license=true" % urllib.parse.quote(path, safe=""), host="gitlab")
+    if st != 200 or not o: return None, "مشروع GitLab مش موجود أو مش عام", []
+    spdx = ((o.get("license") or {}).get("key") or "")
+    spdx = {"mit": "MIT", "apache-2.0": "Apache-2.0", "gpl-3.0": "GPL-3.0", "gpl-2.0": "GPL-2.0", "agpl-3.0": "AGPL-3.0", "lgpl-3.0": "LGPL-3.0",
+            "lgpl-2.1": "LGPL-2.1", "bsd-3-clause": "BSD-3-Clause", "bsd-2-clause": "BSD-2-Clause", "mpl-2.0": "MPL-2.0", "unlicense": "Unlicense", "isc": "ISC", "cc0-1.0": "CC0-1.0"}.get(spdx, "")
+    meta = {"id": "gitlab:" + path, "owner": o["namespace"]["full_path"], "name": o["name"], "desc": o.get("description") or "", "topics": o.get("topics") or [],
+            "spdx": spdx, "archived": o.get("archived", False), "fork": bool(o.get("forked_from_project")), "stars": o.get("star_count", 0),
+            "url": o["web_url"], "host": "gitlab", "pushed": o.get("last_activity_at", ""), "avatar": o.get("avatar_url") or ""}
+    ok, lic = repo_verdict(meta)
+    if not ok: return None, lic, []
+    st, hd, rels = jget("https://gitlab.com/api/v4/projects/%d/releases?per_page=30" % o["id"], host="gitlab")
+    found = gl_collect(rels or [])
+    if not found: return None, "مفيش Release فيه ملف APK يتوثّق بالـSHA-256", []
+    a = new_app(meta, lic); a["pid"] = o["id"]; a["checked"] = now(); S["apps"][meta["id"]] = a
+    merge_versions(a, found, now()); a["r"] = S["rev"] + 1; icon_now(S, a); stats["new_apps"] += 1
+    return a, "", []
+
+def sub_add_codeberg(S, full):
+    base = "https://codeberg.org/api/v1"
+    st, hd, o = jget("%s/repos/%s" % (base, full), host="codeberg")
+    if st != 200 or not o: return None, "مستودع Codeberg مش موجود أو مش عام", []
+    spdx = cb_license(base, full)
+    meta = {"id": "codeberg:" + full, "owner": o["owner"]["login"], "name": o["name"], "desc": o.get("description") or "", "topics": o.get("topics") or [],
+            "spdx": spdx, "archived": o.get("archived", False), "fork": o.get("fork", False), "stars": o.get("stars_count", 0),
+            "url": o["html_url"], "host": "codeberg", "pushed": o.get("updated_at", ""), "avatar": o.get("avatar_url") or ""}
+    ok, lic = repo_verdict(meta)
+    if not ok: return None, lic, []
+    st, hd, rels = jget("%s/repos/%s/releases?limit=30" % (base, full), host="codeberg")
+    found = cb_collect(rels or [])
+    if not found: return None, "مفيش Release فيه ملف APK يتوثّق بالـSHA-256", []
+    a = new_app(meta, lic); a["checked"] = now(); S["apps"][meta["id"]] = a
+    merge_versions(a, found, now()); a["r"] = S["rev"] + 1; icon_now(S, a); stats["new_apps"] += 1
+    return a, "", []
+
+def sub_add_fdroid(S, pkg):
+    st, hd, d = jget("https://f-droid.org/api/v1/packages/" + pkg, host="fdroid")
+    if st != 200 or not d: return None, "التطبيق مش موجود على F-Droid", []
+    lic = (d.get("license") or "").split(",")[0]
+    lic = re.sub(r"-(only|or-later)$", "", lic)
+    name = d.get("name") or pkg
+    summ = re.sub(r"<[^>]+>", "", d.get("summary") or "")
+    meta = {"id": "fdroid:" + pkg, "owner": "f-droid", "name": name, "desc": summ, "topics": [],
+            "spdx": lic, "archived": False, "fork": False, "stars": 0,
+            "url": "https://f-droid.org/packages/%s/" % pkg, "host": "fdroid", "pushed": "", "avatar": ""}
+    ok, lic2 = license_verdict(lic, "f-droid")
+    if not ok: return None, lic2, []
+    svc = d.get("suggestedVersionCode")
+    if svc: meta["avatar"] = "https://f-droid.org/repo/icons-640/%s.%s.png" % (pkg, svc)
+    found = []
+    for vc, pk in (d.get("packages") or {}).items():
+        fn = pk.get("apkName")
+        if not fn or not apk_ok(fn, pk.get("size", 0)): continue
+        url = "https://f-droid.org/repo/" + fn
+        sha = pk.get("hash") if pk.get("hashType") == "sha256" else None
+        hs = "api" if sha else "computed"
+        if not sha:
+            sha = sha256_url(url, "fdroid", pk.get("size", 0))
+            if not sha: continue
+        dt = ""
+        try: dt = time.strftime("%Y-%m-%d", time.gmtime((pk.get("added") or 0) / 1000))
+        except Exception: pass
+        found.append({"tag": pk.get("versionName") or str(vc), "date": dt or now()[:10], "file": fn, "size": pk.get("size", 0), "sha": sha, "url": url, "hs": hs, "pre": 0})
+    if not found: return None, "مفيش ملف APK يتوثّق بالـSHA-256 على F-Droid", []
+    a = new_app(meta, lic2); a["checked"] = now(); S["apps"][meta["id"]] = a
+    merge_versions(a, found, now()); a["r"] = S["rev"] + 1; icon_now(S, a); stats["new_apps"] += 1
+    return a, "", []
+
 def process_submissions(S):
-    """repos queued by 'submit-app' issues (data/submissions.json); outcome goes to data/submission_results.json"""
+    """apps queued by 'submit-app' issues (data/submissions.json); outcome goes to data/submission_results.json.
+    Passing apps from already-listed developers enter at once; new developers or flagged apps wait for the owner's
+    'approved' label on the issue."""
     qf = os.path.join(os.path.dirname(STATE_F), "submissions.json"); rf = os.path.join(os.path.dirname(STATE_F), "submission_results.json")
     if not os.path.exists(qf): return
     try: Q = json.load(open(qf, encoding="utf-8"))
     except Exception: return
     R = json.load(open(rf, encoding="utf-8")) if os.path.exists(rf) else {}
+    me = os.environ.get("GITHUB_REPOSITORY", "")
     for it in Q[:200]:
-        repo = it.get("repo", ""); r = R.setdefault(repo, {"issue": it.get("issue"), "status": "pending", "tries": 0})
+        typ = it.get("type", "github"); link = it.get("link") or it.get("repo", "")
+        if not link: continue
+        key = typ + ":" + link
+        r = R.setdefault(key, {"issue": it.get("issue"), "status": "pending", "tries": 0, "type": typ})
         if r["status"] in ("accepted", "rejected"): continue
         if out_of_time(): break
-        r["tries"] += 1
-        st, hd, o = jget("https://api.github.com/repos/" + repo)
-        if st != 200 or not o:
-            if st in (404, 451): r["status"] = "rejected"; r["why"] = "المستودع مش موجود أو مش عام"
+        if r["status"] == "review":
+            num = r.get("issue")
+            if not (me and num): continue
+            st, hd, iss = jget("https://api.github.com/repos/%s/issues/%s" % (me, num))
+            if st != 200 or not iss: continue
+            if iss.get("state") == "closed": r["status"] = "rejected"; r["why"] = "اتقفل الطلب من غير موافقة"; continue
+            labels = [l.get("name", "") for l in iss.get("labels", [])]
+            if "approved" not in labels: continue
+            r["status"] = "pending"; r["approved"] = True  # fall through to add on this run
+        if not r.get("approved"):
+            r["tries"] += 1
+            if r["tries"] > 12: r["status"] = "rejected"; r["why"] = "عدد محاولات كتير من غير نتيجة"; continue
+        a, why, doubt = None, "", []
+        if typ == "github":
+            st, hd, o = jget("https://api.github.com/repos/" + link)
+            if st != 200 or not o:
+                if st in (404, 451): r["status"] = "rejected"; r["why"] = "المستودع مش موجود أو مش عام"
+                continue
+            meta = gh_meta(o); S["rejected"].pop(meta["id"], None)
+            before = set(S["apps"]); process_github_candidate(S, meta)
+            if meta["id"] in S["apps"] and meta["id"] not in before:
+                a = S["apps"][meta["id"]]
+            elif meta["id"] in S["apps"]:
+                r["status"] = "accepted"; continue
+            else:
+                rj = S["rejected"].get(meta["id"])
+                if rj and rj["why"] != "no verifiable apk release": r["status"] = "rejected"; r["why"] = rj["why"]
+                elif rj: r["status"] = "rejected"; r["why"] = "مفيش Release فيه ملف APK يتوثّق بالـSHA-256"
+                continue
+            r["trust_prefixes"] = ["gh:" + meta["owner"] + "/", meta["owner"] + "/"]
+        elif typ == "gitlab":
+            a, why, doubt = sub_add_gitlab(S, link); r["trust_prefixes"] = ["gitlab:" + link.rsplit("/", 1)[0] + "/"]
+        elif typ == "codeberg":
+            a, why, doubt = sub_add_codeberg(S, link); r["trust_prefixes"] = ["codeberg:" + link.split("/", 1)[0] + "/"]
+        elif typ == "fdroid":
+            a, why, doubt = sub_add_fdroid(S, link); r["trust_prefixes"] = ["fdroid:"]
+        if not a:
+            if why: r["status"] = "rejected"; r["why"] = why
             continue
-        meta = gh_meta(o); S["rejected"].pop(meta["id"], None); process_github_candidate(S, meta)
-        if meta["id"] in S["apps"]: r["status"] = "accepted"; log("SUBMISSION accepted", repo)
-        else:
-            rj = S["rejected"].get(meta["id"])
-            if rj and rj["why"] != "no verifiable apk release": r["status"] = "rejected"; r["why"] = rj["why"]
-            elif rj or r["tries"] >= 12: r["status"] = "rejected"; r["why"] = "مفيش Release فيه ملف APK يتوثّق بالـSHA-256"
+        if r.get("approved"):
+            r["status"] = "accepted"; log("SUBMISSION accepted after review", a["id"]); continue
+        if CFG.get("scan_apk_submissions", True) and not doubt:
+            try:
+                import apk_scan
+                top = _top_apk(a)
+                if top:
+                    scan = apk_scan.scan_apk(top, CFG.get("max_apk_mb", 150), os.path.join(os.path.dirname(os.path.abspath(__file__)), "trk.txt"), set(CFG.get("danger_perms", [])))
+                    if scan.get("danger"): doubt.append("صلاحيات حساسة: " + ", ".join(p.rsplit(".", 1)[-1] for p in scan["danger"]))
+                    if scan.get("trackers"): doubt.append("متتبعون: " + ", ".join(scan["trackers"]))
+                    vt = vt_check(a["versions"][0]["sha"])
+                    if vt is not None and vt > CFG.get("vt_max_positives", 0): doubt.append("فحص الفيروسات: %d محرك اشتبه" % vt)
+            except Exception as e: log("submission scan skipped:", repr(e))
+        sub_finish(S, it, r, a, doubt)
     os.makedirs(os.path.dirname(rf), exist_ok=True); json.dump(R, open(rf, "w", encoding="utf-8"), indent=1, ensure_ascii=False)
 
 def gh_search(S, q, pages, since, sort_stars=False):

@@ -13,3 +13,7 @@ def call(method, path, body=None):
     except Exception: return 0, None
 def comment(repo, num, text): return call("POST", "/repos/%s/issues/%d/comments" % (repo, num), {"body": text})
 def close(repo, num, reason="completed"): return call("PATCH", "/repos/%s/issues/%d" % (repo, num), {"state": "closed", "state_reason": reason})
+def add_label(repo, num, label): return call("POST", "/repos/%s/issues/%d/labels" % (repo, num), {"labels": [label]})
+def get_issue(repo, num):
+    st, o = call("GET", "/repos/%s/issues/%d" % (repo, num))
+    return (st, o) if st == 200 else (st, None)

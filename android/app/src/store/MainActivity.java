@@ -1734,6 +1734,15 @@ public class MainActivity extends Activity {
   int compatCount() { int n = 0; for (App a : all) if (a.ok) n++; return n; }
   String langName() { for (String[] l : LANGS) if (l[0].equals(lang)) return l[1]; return lang; }
 
+  void devDialog() {
+    final String[] d = {"📤 قدّم تطبيقك (فورم خارجي)", "📋 حالة طلبات التقديم (صفحة خارجية)", "ℹ إزاي بيشتغل التقديم؟"};
+    new TB(this).setTitle("🛠 للمطورين").setItems(d, (dd, k) -> {
+      if (k == 2) { new TB(this).setTitle("إزاي بيشتغل التقديم؟").setMessage("قدّم رابط تطبيقك (مستودع عام مفتوح المصدر أو صفحته على F-Droid) من الفورم الخارجي. فحص آلي بيراجع الترخيص والبصمة والصلاحيات والمتتبعين. اللي يعدي بيدخل المتجر لوحده؛ تطبيقات المطورين الجدد واللي عليها ملاحظة بتستنى مراجعة صاحب المتجر.").setPositiveButton("تمام", null).show(); return; }
+      String u = k == 0 ? "https://github.com/ibra8y3-web/kanz-catalog/issues/new?template=submit-app.yml" : "https://github.com/ibra8y3-web/kanz-catalog/issues?q=is%3Aissue+label%3Asubmit-app";
+      try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(u))); } catch (Exception e) { }
+    }).show();
+  }
+
   void showMenu() {
     final String[] icm = {"الأيقونات: واي فاي فقط", "الأيقونات: دائمًا", "الأيقونات: إيقاف (أوفر نت)"};
     final String[] thm = {"المظهر: تلقائي (زي الجهاز)", "المظهر: فاتح", "المظهر: داكن"};
@@ -1742,7 +1751,7 @@ public class MainActivity extends Activity {
       sp.getBoolean("wifionly", false) ? "⬇ التنزيل: واي فاي فقط" : "⬇ التنزيل: أي شبكة",
       sp.getBoolean("autoupd", true) ? "🔔 التحديث التلقائي على الواي فاي: مفعّل" : "🔔 التحديث التلقائي على الواي فاي: متوقف",
       "📚 قوائم مختارة وبدائل", "⚖ مقارنة تطبيقين", "💾 نسخة احتياطية لقائمة تطبيقاتي", "♻ استرجاع قائمة تطبيقات",
-      icm[sp.getInt("iconmode", 1)], "مسح كاش الأيقونات واللقطات", "حذف الملفات المحمّلة (توفير مساحة)", "تحديث الكتالوج الآن", "🌐 موقع كنز", "عن كنز"};
+      icm[sp.getInt("iconmode", 1)], "مسح كاش الأيقونات واللقطات", "حذف الملفات المحمّلة (توفير مساحة)", "تحديث الكتالوج الآن", "🛠 للمطورين", "🌐 موقع كنز", "عن كنز"};
     new TB(this).setItems(items, (d, w) -> {
       switch (w) {
         case 0: { CharSequence[] ln = new CharSequence[LANGS.length]; for (int i = 0; i < ln.length; i++) ln[i] = LANGS[i][1];
@@ -1758,8 +1767,9 @@ public class MainActivity extends Activity {
         case 9: { File[] fs = getCacheDir().listFiles(); if (fs != null) for (File f : fs) f.delete(); cache.evictAll(); show(); break; }
         case 10: { File[] fs = new File(getExternalFilesDir(null), "dl").listFiles(); if (fs != null) for (File f : fs) f.delete(); for (Rec r : new ArrayList<>(recs.values())) if (r.state == 2 || r.state == 4) recs.remove(r.key); saveRecs(); show(); break; }
         case 11: syncRemote(true); break;
-        case 12: try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(sp.getString("site", "https://ibra8y3-web.github.io/kanz-catalog/")))); } catch (Exception e) { } break;
-        default: new TB(this).setTitle("كنز 4.18").setMessage("متجر لتطبيقات أندرويد المفتوحة المصدر والمجانية فقط.\n\n• الفهرس: " + all.size() + " تطبيق (متوافق مع جهازك: " + compatCount() + "). الرقم الإجمالي نفسه على كل الأجهزة لنفس نسخة الكتالوج؛ المتوافق بيختلف حسب أندرويد والمعالج.\n• نسخة الكتالوج: " + (rcRev > 0 ? "r" + rcRev + " • " + rcGen : "المدمج فقط") + "\n• بنتأكد من البصمة (SHA-256) لما تكون متاحة، وبنعرض الأذونات والمتتبّعات قبل التثبيت.\n• التحميل في الخلفية وبيكمل من حيث وقف.\n• مصادر إضافية غير مُراجَعة يدويًا.").setPositiveButton("تمام", null).show();
+        case 12: devDialog(); break;
+        case 13: try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(sp.getString("site", "https://ibra8y3-web.github.io/kanz-catalog/")))); } catch (Exception e) { } break;
+        default: new TB(this).setTitle("كنز 4.19").setMessage("متجر لتطبيقات أندرويد المفتوحة المصدر والمجانية فقط.\n\n• الفهرس: " + all.size() + " تطبيق (متوافق مع جهازك: " + compatCount() + "). الرقم الإجمالي نفسه على كل الأجهزة لنفس نسخة الكتالوج؛ المتوافق بيختلف حسب أندرويد والمعالج.\n• نسخة الكتالوج: " + (rcRev > 0 ? "r" + rcRev + " • " + rcGen : "المدمج فقط") + "\n• بنتأكد من البصمة (SHA-256) لما تكون متاحة، وبنعرض الأذونات والمتتبّعات قبل التثبيت.\n• التحميل في الخلفية وبيكمل من حيث وقف.\n• مصادر إضافية غير مُراجَعة يدويًا.").setPositiveButton("تمام", null).show();
       }
     }).show();
   }

@@ -1,0 +1,31 @@
+# tracker signatures ported from the app (name<TAB>class path prefix)
+Google Firebase Analytics	com/google/firebase/analytics/
+Google Analytics	com/google/android/gms/analytics/
+Google AdMob	com/google/android/gms/ads/
+Firebase Crashlytics	com/google/firebase/crashlytics/
+Facebook SDK	com/facebook/appevents/
+Facebook Ads	com/facebook/ads/
+Flurry	com/flurry/
+Sentry	io/sentry/
+Mixpanel	com/mixpanel/
+AppsFlyer	com/appsflyer/
+Adjust	com/adjust/sdk/
+Amplitude	com/amplitude/
+OneSignal	com/onesignal/
+Unity Ads	com/unity3d/ads/
+AppLovin	com/applovin/
+ironSource	com/ironsource/
+Vungle	com/vungle/
+Chartboost	com/chartboost/
+InMobi	com/inmobi/
+Yandex Metrica	com/yandex/metrica/
+Microsoft AppCenter	com/microsoft/appcenter/
+Bugsnag	com/bugsnag/
+Segment	com/segment/analytics/
+Braze	com/braze/
+Branch	io/branch/
+Kochava	com/kochava/
+Tapjoy	com/tapjoy/
+Matomo (analytics)	org/matomo/
+ACRA (crash reports)	org/acra/
+HockeyApp	net/hockeyapp/
