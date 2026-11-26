@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="store.almasdar" android:versionCode="26" android:versionName="4.16">
+  <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34"/>
+  <uses-permission android:name="android.permission.INTERNET"/>
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+  <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+  <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES"/>
+  <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"/>
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+  <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+  <application android:largeHeap="true" android:label="كنز" android:theme="@style/AppTheme" android:icon="@mipmap/ic_launcher" android:supportsRtl="true" android:allowBackup="false" android:usesCleartextTraffic="false">
+    <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop" android:windowSoftInputMode="adjustPan" android:configChanges="orientation|screenSize|keyboardHidden">
+      <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+      <intent-filter><action android:name="android.intent.action.VIEW"/><category android:name="android.intent.category.DEFAULT"/><category android:name="android.intent.category.BROWSABLE"/><data android:scheme="kanz" android:host="app"/></intent-filter>
+      <intent-filter><action android:name="android.intent.action.VIEW"/><category android:name="android.intent.category.DEFAULT"/><category android:name="android.intent.category.BROWSABLE"/><data android:scheme="kanz" android:host="list"/></intent-filter>
+      <intent-filter><action android:name="android.intent.action.VIEW"/><category android:name="android.intent.category.DEFAULT"/><category android:name="android.intent.category.BROWSABLE"/><data android:scheme="https" android:host="ibra8y3-web.github.io" android:pathPrefix="/kanz-catalog/a/"/></intent-filter>
+      <intent-filter><action android:name="android.intent.action.VIEW"/><category android:name="android.intent.category.DEFAULT"/><category android:name="android.intent.category.BROWSABLE"/><data android:scheme="https" android:host="ibra8y3-web.github.io" android:pathPrefix="/kanz-catalog/l/"/></intent-filter>
+    </activity>
+    <receiver android:name=".BootRcv" android:exported="true"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/><action android:name="android.intent.action.MY_PACKAGE_REPLACED"/></intent-filter></receiver>
+    <receiver android:name=".InstallReceiver" android:exported="false"/>
+    <receiver android:name=".Dl" android:exported="false"><intent-filter><action android:name="android.intent.action.DOWNLOAD_COMPLETE"/></intent-filter></receiver>
+    <service android:name=".CatSync" android:exported="false" android:permission="android.permission.BIND_JOB_SERVICE"/>
+    <service android:name=".AutoUpd" android:exported="false" android:permission="android.permission.BIND_JOB_SERVICE"/>
+  </application>
+</manifest>
