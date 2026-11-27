@@ -1760,9 +1760,9 @@ public class MainActivity extends Activity {
   String langName() { for (String[] l : LANGS) if (l[0].equals(lang)) return l[1]; return lang; }
 
   void devDialog() {
-    final String[] d = {"📤 قدّم تطبيقك (فورم خارجي)", "📋 حالة طلبات التقديم (صفحة خارجية)", "ℹ إزاي بيشتغل التقديم؟"};
+    final String[] d = {"📤 قدّم تطبيقك", "📋 حالة طلبات التقديم", "ℹ إزاي بيشتغل التقديم والربط؟"};
     new TB(this).setTitle("🛠 للمطورين").setItems(d, (dd, k) -> {
-      if (k == 2) { new TB(this).setTitle("إزاي بيشتغل التقديم؟").setMessage("قدّم رابط تطبيقك (مستودع عام مفتوح المصدر أو صفحته على F-Droid) من الفورم الخارجي. فحص آلي بيراجع الترخيص والبصمة والصلاحيات والمتتبعين. اللي يعدي بيدخل المتجر لوحده؛ تطبيقات المطورين الجدد واللي عليها ملاحظة بتستنى مراجعة صاحب المتجر.").setPositiveButton("تمام", null).show(); return; }
+      if (k == 2) { new TB(this).setTitle("إزاي بيشتغل التقديم والربط؟").setMessage("التقديم: قدّم رابط تطبيقك من GitHub أو GitLab أو Codeberg أو صفحته على F-Droid — المتجر مفتوح المصدر بس، فرابط APK لوحده مرفوض. الطلب بيفتح Issue في مستودع كنز على GitHub، والمحرك بيفحصه في التشغيل الجاي (كل 30 دقيقة تقريبًا): الترخيص وملف التثبيت وبصمة SHA-256 والصلاحيات والمتتبعين، وبيرد على نفس الـ Issue بالنتيجة. الحد الأقصى 5 طلبات مفتوحة لكل مطور.\n\nالقبول: تطبيقات المطورين الموثوقين (ليهم تطبيق في المتجر) بتدخل لوحدها لو مفيش ملاحظات والملكية مثبتة؛ غير كده بتستنى مراجعة صاحب المتجر.\n\nالربط (إثبات الملكية): على GitHub لو قدّمت من حساب صاحب المستودع أو حساب متعاون فيه، التحقق بيتم تلقائيًا. غير كده (وفي GitLab وCodeberg) البوت هيرد عليك بكود زي kanz-XXXX — حطه في ملف اسمه KANZ-VERIFY.txt في جذر المستودع وهيتم التحقق في التشغيل الجاي.").setPositiveButton("تمام", null).show(); return; }
       String u = k == 0 ? "https://github.com/ibra8y3-web/kanz/issues/new?template=submit-app.yml" : "https://github.com/ibra8y3-web/kanz/issues?q=is%3Aissue+label%3Asubmit-app";
       try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(u))); } catch (Exception e) { }
     }).show();
@@ -1794,7 +1794,7 @@ public class MainActivity extends Activity {
         case 11: syncRemote(true); break;
         case 12: devDialog(); break;
         case 13: try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(sp.getString("site", "https://ibra8y3-web.github.io/kanz/")))); } catch (Exception e) { } break;
-        default: new TB(this).setTitle("كنز 4.19").setMessage("متجر لتطبيقات أندرويد المفتوحة المصدر والمجانية فقط.\n\n• الفهرس: " + all.size() + " تطبيق (متوافق مع جهازك: " + compatCount() + "). الرقم الإجمالي نفسه على كل الأجهزة لنفس نسخة الكتالوج؛ المتوافق بيختلف حسب أندرويد والمعالج.\n• نسخة الكتالوج: " + (rcRev > 0 ? "r" + rcRev + " • " + rcGen : "المدمج فقط") + "\n• بنتأكد من البصمة (SHA-256) لما تكون متاحة، وبنعرض الأذونات والمتتبّعات قبل التثبيت.\n• التحميل في الخلفية وبيكمل من حيث وقف.\n• مصادر إضافية غير مُراجَعة يدويًا.").setPositiveButton("تمام", null).show();
+        default: new TB(this).setTitle("كنز 4.21").setMessage("متجر لتطبيقات أندرويد المفتوحة المصدر والمجانية فقط.\n\n• الفهرس: " + all.size() + " تطبيق (متوافق مع جهازك: " + compatCount() + "). الرقم الإجمالي نفسه على كل الأجهزة لنفس نسخة الكتالوج؛ المتوافق بيختلف حسب أندرويد والمعالج.\n• نسخة الكتالوج: " + (rcRev > 0 ? "r" + rcRev + " • " + rcGen : "المدمج فقط") + "\n• بنتأكد من البصمة (SHA-256) لما تكون متاحة، وبنعرض الأذونات والمتتبّعات قبل التثبيت.\n• التحميل في الخلفية وبيكمل من حيث وقف.\n• مصادر إضافية غير مُراجَعة يدويًا.").setPositiveButton("تمام", null).show();
       }
     }).show();
   }
